@@ -151,4 +151,8 @@ function MarkdownContentInner({ content }: Props) {
   );
 }
 
-export const MarkdownContent: React.FC<Props> = React.memo(MarkdownContentInner);
+export function MarkdownContent({ content }: Props) {
+  return <MarkdownContentMemo content={content} />;
+}
+
+const MarkdownContentMemo = React.memo(MarkdownContentInner);
