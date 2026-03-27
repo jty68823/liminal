@@ -150,6 +150,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   pendingToolCalls: [],
   pendingSubAgentResults: [],
   pendingArtifacts: [],
+  autonomousProgress: null,
   currentProjectId: null,
 
   setCurrentProjectId(id) {
@@ -256,6 +257,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   addPendingArtifact(artifact) {
     set((state) => ({ pendingArtifacts: [...state.pendingArtifacts, artifact] }));
+  },
+
+  setAutonomousProgress(progress) {
+    set({ autonomousProgress: progress });
   },
 
   clearPendingToolCalls() {

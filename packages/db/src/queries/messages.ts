@@ -1,4 +1,4 @@
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, and, gt } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getDb } from '../client.js';
 import { messages } from '../schema.js';
@@ -70,4 +70,39 @@ export function getLastMessages(conversationId: string, n: number): Message[] {
     .limit(n)
     .all();
   return rows.reverse();
+}
+
+/**
+ * Update an existing message's content.
+ */
+export function updateMessage(id: string, content: string): void {
+  const db = getDb();
+  db.update(messages)
+    .set({ content })
+    .where(eq(messages.id, id))
+    .run();
+}
+
+/**
+ * Delete all messages in a conversation with sequence > the given value.
+ * Used to remove responses after an edited message.
+ */
+export function deleteMessagesAfter(conversationId: string, sequence: number): void {
+  const db = getDb();
+  db.delete(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        gt(messages.sequence, sequence),
+      ),
+    )
+    .run();
+}
+
+/**
+ * Get a single message by ID.
+ */
+export function getMessage(id: string): Message | null {
+  const db = getDb();
+  return db.select().from(messages).where(eq(messages.id, id)).get() ?? null;
 }
