@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- LEFT TOP: Quarter-circle pie wedge -->
+  <path d="M30 30 L270 30 A240 240 0 0 1 30 270 Z" fill="#1c1917"/>
+  <!-- LEFT BOTTOM: Rounded square -->
+  <rect x="30" y="290" width="195" height="190" rx="50" fill="#1c1917"/>
+  <!-- RIGHT: Gothic pointed arch -->
+  <path d="
+    M290 480
+    L290 155
+    A95 95 0 0 1 385 60
+    A95 95 0 0 1 480 155
+    L480 480
+    Z
+  " fill="#1c1917"/>
+</svg>

@@ -1,0 +1,13 @@
+services:
+  liminal:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      DATABASE_PATH: /app/data/liminal.db
+      NODE_ENV: production
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

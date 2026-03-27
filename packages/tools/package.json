@@ -1,0 +1,43 @@
+{
+  "name": "@liminal/tools",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./skills": {
+      "import": "./dist/skills/skill-engine.js",
+      "types": "./dist/skills/skill-engine.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@jitsi/robotjs": "^0.6.21",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@liminal/core": "workspace:*",
+    "@liminal/db": "workspace:*",
+    "@liminal/inference": "workspace:^",
+    "glob": "^11.0.0",
+    "node-html-parser": "^7.1.0",
+    "papaparse": "^5.5.3",
+    "pdf-parse": "^2.4.5",
+    "screenshot-desktop": "^1.15.3",
+    "simple-git": "^3.27.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/papaparse": "^5.5.2",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.1"
+  }
+}

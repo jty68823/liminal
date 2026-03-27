@@ -1,0 +1,24 @@
+{
+  "name": "@liminal/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "echo 'Desktop: run pnpm desktop:build for packaging'",
+    "dev": "echo 'Desktop: run pnpm desktop:dev separately after installing Electron'",
+    "dev:electron": "tsc && electron .",
+    "compile": "tsc",
+    "package": "node scripts/build-desktop.mjs",
+    "package:dir": "node scripts/build-desktop.mjs --dir",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-is-dev": "^3.0.1"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

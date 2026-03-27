@@ -1,0 +1,13 @@
+node_modules
+dist
+.turbo
+.next
+.git
+.claude
+*.md
+!README.md
+.env
+.env.local
+data/
+*.db
+*.log

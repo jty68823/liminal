@@ -1,0 +1,70 @@
+appId: io.liminal.app
+productName: Liminal
+copyright: Copyright © 2025 Liminal
+
+asar: false
+
+directories:
+  output: release
+  buildResources: assets
+
+# Electron main process files only (no node_modules)
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+  - "!node_modules/**/*"
+
+# Bundle all required runtime code as extra resources
+extraResources:
+  # Shared packages (pre-built TypeScript → JS)
+  - from: ../../packages/core/dist
+    to: app/packages/core/dist
+  - from: ../../packages/db/dist
+    to: app/packages/db/dist
+  - from: ../../packages/inference/dist
+    to: app/packages/inference/dist
+  - from: ../../packages/tools/dist
+    to: app/packages/tools/dist
+
+  # API server (pre-built, esbuild-bundled single file)
+  - from: ../../apps/api/dist
+    to: app/apps/api/dist
+
+  # Native addon dependencies for API (better-sqlite3 + its deps)
+  - from: ../../node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3
+    to: app/node_modules/better-sqlite3
+  - from: ../../node_modules/.pnpm/bindings@1.5.0/node_modules/bindings
+    to: app/node_modules/bindings
+  - from: ../../node_modules/.pnpm/file-uri-to-path@1.0.0/node_modules/file-uri-to-path
+    to: app/node_modules/file-uri-to-path
+
+  # Next.js standalone output (self-contained Node.js server)
+  - from: ../../apps/web/.next/standalone
+    to: app/apps/web/standalone
+  - from: ../../apps/web/.next/static
+    to: app/apps/web/standalone/apps/web/.next/static
+
+  # API package.json (for dependency resolution)
+  - from: ../../apps/api/package.json
+    to: app/apps/api/package.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icon.ico
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Liminal
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeaderIcon: assets/icon.ico
+  deleteAppDataOnUninstall: false
