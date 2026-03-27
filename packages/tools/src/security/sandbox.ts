@@ -51,9 +51,24 @@ export async function runSandboxed(
 
   const sandboxedCmd = buildSandboxedCommand(command, options);
 
-  const result = spawnSync('sh', ['-c', sandboxedCmd], {
+  // Build restricted env for non-Linux platforms too
+  const windowsRestrictedEnv: NodeJS.ProcessEnv = {
+    PATH: process.env['PATH'] ?? '',
+    SYSTEMROOT: process.env['SYSTEMROOT'] ?? 'C:\\Windows',
+    TEMP: process.env['TEMP'] ?? process.env['TMP'] ?? 'C:\\Windows\\Temp',
+    TMP: process.env['TMP'] ?? process.env['TEMP'] ?? 'C:\\Windows\\Temp',
+    USERPROFILE: process.env['USERPROFILE'] ?? '',
+    HOMEDRIVE: process.env['HOMEDRIVE'] ?? 'C:',
+    HOMEPATH: process.env['HOMEPATH'] ?? '\\Users\\Default',
+  };
+
+  const envToUse = isLinux() ? restrictedEnv : windowsRestrictedEnv;
+  const shellCmd = isLinux() ? 'sh' : process.platform === 'win32' ? 'cmd.exe' : 'sh';
+  const shellArgs = isLinux() ? ['-c', sandboxedCmd] : process.platform === 'win32' ? ['/c', sandboxedCmd] : ['-c', sandboxedCmd];
+
+  const result = spawnSync(shellCmd, shellArgs, {
     cwd,
-    env: isLinux() ? restrictedEnv : { ...process.env },
+    env: envToUse,
     timeout: timeoutMs,
     encoding: 'utf-8',
     maxBuffer: 10 * 1024 * 1024, // 10MB
