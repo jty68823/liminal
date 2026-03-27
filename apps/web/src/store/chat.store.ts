@@ -171,6 +171,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         pendingToolCalls: [],
         pendingSubAgentResults: [],
         pendingArtifacts: [],
+        autonomousProgress: null,
       });
       get().loadMessages(id);
     }

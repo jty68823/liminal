@@ -32,6 +32,7 @@ export {
   listConversations,
   updateConversation,
   deleteConversation,
+  searchConversations,
 } from './queries/conversations.js';
 export type {
   Conversation,
@@ -44,6 +45,9 @@ export {
   createMessage,
   getMessages,
   getLastMessages,
+  getMessage,
+  updateMessage,
+  deleteMessagesAfter,
 } from './queries/messages.js';
 export type {
   Message,

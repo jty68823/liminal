@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { runChat } from '../services/chat.service.js';
 import { detectAndSaveArtifacts } from '../services/artifact.service.js';
 import { TokenStreamBuffer } from '../lib/stream-buffer.js';
+import { getMessage, updateMessage, deleteMessagesAfter, getMessages } from '@liminal/db';
 
 export const messagesRouter = new Hono();
 
@@ -82,6 +83,21 @@ messagesRouter.post('/', async (c) => {
 
     try {
       console.log('[messages] Starting runChat...');
+
+      // Subscribe to autonomous progress events for this stream
+      let autonomousHandler: ((event: unknown) => void) | undefined;
+      try {
+        const { autonomousEventBus } = await import('@liminal/tools');
+        autonomousHandler = (event: unknown) => {
+          stream.writeSSE({
+            event: 'autonomous_progress',
+            data: JSON.stringify(event),
+          }).catch(() => {});
+        };
+        autonomousEventBus.onProgress(autonomousHandler);
+        autonomousEventBus.onComplete(autonomousHandler);
+      } catch { /* tools not available */ }
+
       await runChat(
       {
         conversationId: conversation_id,

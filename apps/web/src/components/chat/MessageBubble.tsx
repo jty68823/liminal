@@ -6,6 +6,8 @@ import { MarkdownContent } from '@/lib/markdown';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { SubAgentDisplay } from './SubAgentDisplay';
 import { useArtifactStore } from '@/store/artifact.store';
+import { useChatStore } from '@/store/chat.store';
+import { AutonomousProgressDisplay } from '@/components/computer-use/AutonomousProgressDisplay';
 import { Logo } from '@/components/ui/Logo';
 
 interface Props {
@@ -147,6 +149,7 @@ const ArtifactButton = React.memo(function ArtifactButton({ artifactId, title, t
 export const MessageBubble = React.memo(function MessageBubble({ message, isStreaming }: Props) {
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
+  const autonomousProgress = useChatStore((s) => s.autonomousProgress);
 
   if (isUser) {
     return (
@@ -211,6 +214,11 @@ export const MessageBubble = React.memo(function MessageBubble({ message, isStre
           {/* Sub-agent results */}
           {message.subAgentResults && message.subAgentResults.length > 0 && (
             <SubAgentDisplay results={message.subAgentResults} />
+          )}
+
+          {/* Autonomous task progress */}
+          {isStreaming && autonomousProgress && (
+            <AutonomousProgressDisplay progress={autonomousProgress} />
           )}
 
           {/* Content */}
