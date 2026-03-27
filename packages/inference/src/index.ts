@@ -117,6 +117,7 @@ export type {
   AutoTaskQAStartEvent,
   AutoTaskQAResultEvent,
   AutoTaskQADoneEvent,
+  AutoTaskProgressEvent,
   AutoTaskDoneEvent,
   AutoTaskErrorEvent,
 } from './auto-task/types.js';

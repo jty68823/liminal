@@ -15,6 +15,13 @@ import type {
   SubtaskStatus,
   QAVerdict,
 } from './types.js';
+
+/** Weight-based duration estimates (ms) */
+const WEIGHT_DURATION_MS: Record<number, number> = {
+  1: 5_000,
+  2: 15_000,
+  3: 45_000,
+};
 import { providerRegistry } from '../providers/registry.js';
 import { agentRegistry } from '../cowork/agents.js';
 import { dispatchSubAgentsSync } from '../agent-dispatcher.js';
@@ -129,6 +136,43 @@ export class AutoTaskOrchestrator {
 
       let cumulativeContext = '';
 
+      /** Emit progress event with weight-based time estimation */
+      const emitProgress = (): void => {
+        const subtasks = Array.from(subtaskMap.values());
+        const totalWeight = subtasks.reduce((sum, s) => sum + (s.weight ?? 2), 0);
+        const completedWeight = subtasks
+          .filter((s) => s.status === 'completed' || s.status === 'failed' || s.status === 'skipped')
+          .reduce((sum, s) => sum + (s.weight ?? 2), 0);
+
+        const progressPercent = totalWeight > 0
+          ? Math.round((completedWeight / totalWeight) * 100)
+          : 0;
+
+        const elapsedMs = Date.now() - startTime;
+
+        let estimatedRemainingMs: number | null = null;
+        if (completedWeight > 0 && elapsedMs > 0) {
+          const remainingWeight = totalWeight - completedWeight;
+          const velocity = completedWeight / elapsedMs;
+          estimatedRemainingMs = Math.round(remainingWeight / velocity);
+        } else {
+          const remaining = subtasks.filter((s) => s.status === 'pending' || s.status === 'running');
+          estimatedRemainingMs = remaining.reduce((sum, s) => sum + (WEIGHT_DURATION_MS[s.weight ?? 2] ?? 15_000), 0);
+        }
+
+        options.onEvent({
+          type: 'auto_task_progress',
+          runId,
+          totalSubtasks: subtasks.length,
+          completedSubtasks: completedIds.size,
+          failedSubtasks: failedIds.size,
+          runningSubtasks: runningIds.size,
+          progressPercent: Math.min(progressPercent, 100),
+          elapsedMs,
+          estimatedRemainingMs,
+        });
+      };
+
       const isReady = (subtask: Subtask): boolean =>
         subtask.status === 'pending' &&
         subtask.dependsOn.every((dep) => completedIds.has(dep));
@@ -194,6 +238,8 @@ export class AutoTaskOrchestrator {
             result,
             durationMs: Date.now() - subtaskStartTime,
           });
+
+          emitProgress();
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           subtask.status = 'failed';
@@ -210,6 +256,8 @@ export class AutoTaskOrchestrator {
             error: errorMsg,
             durationMs: Date.now() - subtaskStartTime,
           });
+
+          emitProgress();
 
           // Mark dependent subtasks as skipped
           for (const s of subtaskMap.values()) {

@@ -36,6 +36,7 @@ export interface Subtask {
   error?: string;
   startedAt?: number;
   finishedAt?: number;
+  weight?: number;
 }
 
 export interface AutoTaskPlan {
@@ -55,6 +56,30 @@ export interface SubtaskDisplayState {
   startedAt?: number;
   finishedAt?: number;
   durationMs?: number;
+  /** AI-estimated weight (1=light, 2=medium, 3=heavy) */
+  weight?: number;
+  /** Estimated duration based on weight */
+  estimatedDurationMs?: number;
+}
+
+/** Overall progress metadata emitted by the orchestrator */
+export interface AutoTaskProgressInfo {
+  /** Total subtask count */
+  totalSubtasks: number;
+  /** Completed subtask count */
+  completedSubtasks: number;
+  /** Failed subtask count */
+  failedSubtasks: number;
+  /** Currently running subtask count */
+  runningSubtasks: number;
+  /** Percentage 0-100 based on weight-adjusted progress */
+  progressPercent: number;
+  /** Total elapsed ms since task start */
+  elapsedMs: number;
+  /** Estimated remaining ms (weight-based) */
+  estimatedRemainingMs: number | null;
+  /** Current phase label */
+  phase: AutoTaskRunStatus;
 }
 
 export interface DynamicAgentInfo {

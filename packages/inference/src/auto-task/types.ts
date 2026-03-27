@@ -168,6 +168,18 @@ export interface AutoTaskQADoneEvent {
 
 // ── Completion events ────────────────────────────────────────────────────────
 
+export interface AutoTaskProgressEvent {
+  type: 'auto_task_progress';
+  runId: string;
+  totalSubtasks: number;
+  completedSubtasks: number;
+  failedSubtasks: number;
+  runningSubtasks: number;
+  progressPercent: number;
+  elapsedMs: number;
+  estimatedRemainingMs: number | null;
+}
+
 export interface AutoTaskDoneEvent {
   type: 'auto_task_done';
   runId: string;
@@ -198,5 +210,6 @@ export type AutoTaskEvent =
   | AutoTaskQAStartEvent
   | AutoTaskQAResultEvent
   | AutoTaskQADoneEvent
+  | AutoTaskProgressEvent
   | AutoTaskDoneEvent
   | AutoTaskErrorEvent;

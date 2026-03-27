@@ -17,6 +17,7 @@ interface AutoTaskPlanEventData {
       type: 'tool_call' | 'sub_agent' | 'cowork' | 'web_search' | 'code_execution';
       dependsOn: string[];
       status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+      weight?: number;
     }>;
     reasoning: string;
     estimatedSteps: number;
@@ -167,6 +168,11 @@ export function useAutoTask() {
     });
 
     // QA events
+    es.addEventListener('auto_task_progress', () => {
+      store.refreshProgress();
+      store.appendEvent('auto_task_progress');
+    });
+
     es.addEventListener('auto_task_qa_start', (e: MessageEvent<string>) => {
       JSON.parse(e.data) as AutoTaskQAStartData;
       store.setStatus('qa');
@@ -192,7 +198,7 @@ export function useAutoTask() {
 
     es.addEventListener('auto_task_done', (e: MessageEvent<string>) => {
       const data = JSON.parse(e.data) as AutoTaskDoneData;
-      store.setResult(data.result);
+      store.setResult(data.result, data.durationMs);
       store.setStatus('completed');
       store.appendEvent('auto_task_done');
       es.close();

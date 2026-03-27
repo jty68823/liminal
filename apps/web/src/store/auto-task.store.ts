@@ -9,7 +9,67 @@ import type {
   DynamicAgentInfo,
   QAResultInfo,
   QAVerdict,
+  AutoTaskProgressInfo,
 } from '@/types/auto-task';
+
+/** Weight-based duration estimates (ms) per weight unit */
+const WEIGHT_DURATION_MS: Record<number, number> = {
+  1: 5_000,   // light: ~5s
+  2: 15_000,  // medium: ~15s
+  3: 45_000,  // heavy: ~45s
+};
+
+function computeProgress(subtasks: SubtaskDisplayState[], startedAt: number | null, status: AutoTaskRunStatus): AutoTaskProgressInfo {
+  const total = subtasks.length;
+  const completed = subtasks.filter((s) => s.status === 'completed').length;
+  const failed = subtasks.filter((s) => s.status === 'failed' || s.status === 'skipped').length;
+  const running = subtasks.filter((s) => s.status === 'running').length;
+  const elapsedMs = startedAt ? Date.now() - startedAt : 0;
+
+  // Weight-based progress: sum of completed weights / total weights
+  const totalWeight = subtasks.reduce((sum, s) => sum + (s.weight ?? 2), 0);
+  const completedWeight = subtasks
+    .filter((s) => s.status === 'completed' || s.status === 'failed' || s.status === 'skipped')
+    .reduce((sum, s) => sum + (s.weight ?? 2), 0);
+
+  // Add partial credit for running tasks based on elapsed
+  const runningPartialWeight = subtasks
+    .filter((s) => s.status === 'running' && s.startedAt)
+    .reduce((sum, s) => {
+      const est = s.estimatedDurationMs ?? WEIGHT_DURATION_MS[s.weight ?? 2] ?? 15_000;
+      const elapsed = Date.now() - (s.startedAt ?? Date.now());
+      const fraction = Math.min(elapsed / est, 0.9); // Cap at 90%
+      return sum + (s.weight ?? 2) * fraction;
+    }, 0);
+
+  const effectiveCompleted = completedWeight + runningPartialWeight;
+  const progressPercent = totalWeight > 0
+    ? Math.round((effectiveCompleted / totalWeight) * 100)
+    : 0;
+
+  // Estimated remaining: use velocity from completed tasks
+  let estimatedRemainingMs: number | null = null;
+  if (completedWeight > 0 && elapsedMs > 0) {
+    const remainingWeight = totalWeight - effectiveCompleted;
+    const velocity = effectiveCompleted / elapsedMs; // weight per ms
+    estimatedRemainingMs = Math.round(remainingWeight / velocity);
+  } else if (totalWeight > 0) {
+    // Fallback: use weight-based static estimates
+    const remaining = subtasks.filter((s) => s.status === 'pending' || s.status === 'running');
+    estimatedRemainingMs = remaining.reduce((sum, s) => sum + (WEIGHT_DURATION_MS[s.weight ?? 2] ?? 15_000), 0);
+  }
+
+  return {
+    totalSubtasks: total,
+    completedSubtasks: completed,
+    failedSubtasks: failed,
+    runningSubtasks: running,
+    progressPercent: Math.min(progressPercent, 100),
+    elapsedMs,
+    estimatedRemainingMs,
+    phase: status,
+  };
+}
 
 interface AutoTaskState {
   isOpen: boolean;
@@ -22,6 +82,11 @@ interface AutoTaskState {
   resultText: string;
   error: string | null;
   eventLog: Array<{ type: string; timestamp: number }>;
+
+  // Timing
+  startedAt: number | null;
+  totalDurationMs: number | null;
+  progress: AutoTaskProgressInfo | null;
 
   // Dynamic agents
   dynamicAgents: DynamicAgentInfo[];
@@ -37,8 +102,9 @@ interface AutoTaskState {
   startRun: (runId: string) => void;
   setPlan: (plan: AutoTaskPlan) => void;
   updateSubtaskStatus: (subtaskId: string, update: Partial<SubtaskDisplayState>) => void;
+  refreshProgress: () => void;
   setStatus: (status: AutoTaskRunStatus) => void;
-  setResult: (text: string) => void;
+  setResult: (text: string, durationMs?: number) => void;
   setError: (error: string) => void;
   appendEvent: (type: string) => void;
   addDynamicAgent: (agent: DynamicAgentInfo) => void;
@@ -48,7 +114,7 @@ interface AutoTaskState {
   reset: () => void;
 }
 
-export const useAutoTaskStore = create<AutoTaskState>((set) => ({
+export const useAutoTaskStore = create<AutoTaskState>((set, get) => ({
   isOpen: false,
   runId: null,
   status: 'idle',
@@ -59,6 +125,9 @@ export const useAutoTaskStore = create<AutoTaskState>((set) => ({
   resultText: '',
   error: null,
   eventLog: [],
+  startedAt: null,
+  totalDurationMs: null,
+  progress: null,
   dynamicAgents: [],
   qaResults: [],
   qaOverallVerdict: null,
@@ -75,28 +144,50 @@ export const useAutoTaskStore = create<AutoTaskState>((set) => ({
     resultText: '',
     error: null,
     eventLog: [],
+    startedAt: Date.now(),
+    totalDurationMs: null,
+    progress: null,
     dynamicAgents: [],
     qaResults: [],
     qaOverallVerdict: null,
     qaSummary: null,
   }),
-  setPlan: (plan) => set({
-    plan,
-    status: 'executing',
-    subtaskStatuses: plan.subtasks.map((s) => ({
+  setPlan: (plan) => {
+    const subtaskStatuses = plan.subtasks.map((s) => ({
       subtaskId: s.id,
       title: s.title,
       type: s.type,
       status: 'pending' as const,
-    })),
-  }),
-  updateSubtaskStatus: (subtaskId, update) => set((state) => ({
-    subtaskStatuses: state.subtaskStatuses.map((s) =>
+      weight: s.weight ?? 2,
+      estimatedDurationMs: WEIGHT_DURATION_MS[s.weight ?? 2] ?? 15_000,
+    }));
+    set({
+      plan,
+      status: 'executing',
+      subtaskStatuses,
+      progress: computeProgress(subtaskStatuses, get().startedAt, 'executing'),
+    });
+  },
+  updateSubtaskStatus: (subtaskId, update) => set((state) => {
+    const subtaskStatuses = state.subtaskStatuses.map((s) =>
       s.subtaskId === subtaskId ? { ...s, ...update } : s,
-    ),
+    );
+    return {
+      subtaskStatuses,
+      progress: computeProgress(subtaskStatuses, state.startedAt, state.status),
+    };
+  }),
+  refreshProgress: () => set((state) => ({
+    progress: computeProgress(state.subtaskStatuses, state.startedAt, state.status),
   })),
-  setStatus: (status) => set({ status }),
-  setResult: (resultText) => set({ resultText }),
+  setStatus: (status) => set((state) => ({
+    status,
+    progress: computeProgress(state.subtaskStatuses, state.startedAt, status),
+  })),
+  setResult: (resultText, durationMs) => set({
+    resultText,
+    totalDurationMs: durationMs ?? null,
+  }),
   setError: (error) => set({ error }),
   appendEvent: (type) => set((state) => ({
     eventLog: [...state.eventLog, { type, timestamp: Date.now() }],
@@ -125,6 +216,9 @@ export const useAutoTaskStore = create<AutoTaskState>((set) => ({
     resultText: '',
     error: null,
     eventLog: [],
+    startedAt: null,
+    totalDurationMs: null,
+    progress: null,
     dynamicAgents: [],
     qaResults: [],
     qaOverallVerdict: null,
