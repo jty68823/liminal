@@ -2,6 +2,43 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { api } from '@/lib/api-client';
 
+// ── Token batching ──────────────────────────────────────────────────
+// Accumulates streaming and thinking tokens between animation frames
+// so the Zustand store updates at most ~60 times/sec instead of per-token.
+let _streamBuf = '';
+let _thinkBuf = '';
+let _batchRaf: number | null = null;
+// The store reference is assigned after create() below to avoid TDZ issues.
+let _storeRef: typeof useChatStore | null = null;
+
+function _flushTokenBatch() {
+  _batchRaf = null;
+  const sd = _streamBuf;
+  const td = _thinkBuf;
+  _streamBuf = '';
+  _thinkBuf = '';
+
+  if ((sd || td) && _storeRef) {
+    const state = _storeRef.getState();
+    // Compute new state in one set() call
+    const patch: Record<string, unknown> = {};
+    if (sd) {
+      patch.streamingContent = state.streamingContent + sd;
+      patch.isThinking = false;
+    }
+    if (td) {
+      patch.thinkingContent = state.thinkingContent + td;
+      patch.isThinking = true;
+    }
+    // If both arrived in the same frame, streaming takes priority for isThinking flag
+    if (sd && td) {
+      patch.isThinking = false;
+    }
+    _storeRef.setState(patch);
+  }
+}
+// ────────────────────────────────────────────────────────────────────
+
 export type MessageRole = 'user' | 'assistant';
 
 export interface SubAgentResult {
@@ -132,29 +169,43 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   appendStreamingToken(delta) {
-    set((state) => ({
-      streamingContent: state.streamingContent + delta,
-      isThinking: false,
-    }));
+    _streamBuf += delta;
+    if (_batchRaf === null) {
+      _batchRaf = requestAnimationFrame(() => _flushTokenBatch());
+    }
   },
 
   appendThinkingToken(delta) {
-    set((state) => ({
-      thinkingContent: state.thinkingContent + delta,
-      isThinking: true,
-    }));
+    _thinkBuf += delta;
+    if (_batchRaf === null) {
+      _batchRaf = requestAnimationFrame(() => _flushTokenBatch());
+    }
   },
 
   finalizeStreamingMessage(messageId) {
+    // Flush any pending batched tokens before finalizing
+    if (_batchRaf !== null) {
+      cancelAnimationFrame(_batchRaf);
+      _batchRaf = null;
+    }
+    // Apply any remaining buffered tokens synchronously
+    const bufferedStream = _streamBuf;
+    const bufferedThink = _thinkBuf;
+    _streamBuf = '';
+    _thinkBuf = '';
+
     const { streamingContent, thinkingContent, pendingToolCalls, pendingSubAgentResults, currentConversationId } = get();
+    const finalStreamContent = streamingContent + bufferedStream;
+    const finalThinkContent = thinkingContent + bufferedThink;
+
     const finalMessage: Message = {
       id: messageId,
       conversationId: currentConversationId ?? '',
       role: 'assistant',
-      content: streamingContent,
+      content: finalStreamContent,
       thinking:
-        thinkingContent
-          ? [{ type: 'thinking', content: thinkingContent }]
+        finalThinkContent
+          ? [{ type: 'thinking', content: finalThinkContent }]
           : undefined,
       toolCalls: pendingToolCalls.length > 0 ? [...pendingToolCalls] : undefined,
       subAgentResults: pendingSubAgentResults.length > 0 ? [...pendingSubAgentResults] : undefined,
@@ -197,6 +248,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   reset() {
+    // Cancel any pending RAF batch
+    if (_batchRaf !== null) {
+      cancelAnimationFrame(_batchRaf);
+      _batchRaf = null;
+    }
+    _streamBuf = '';
+    _thinkBuf = '';
     set({
       messages: [],
       streamingContent: '',
@@ -308,3 +366,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 }));
+
+// Wire up the store reference for the token batching flush function
+_storeRef = useChatStore;

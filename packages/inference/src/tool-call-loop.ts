@@ -60,7 +60,7 @@ export interface ToolCallLoopOptions {
    * tool calls, tool results, done signals).
    */
   onEvent: (event: LoopEvent) => void;
-  /** Maximum number of model↔tool round-trips.  Defaults to 10. */
+  /** Maximum number of model<>tool round-trips.  Defaults to 6. */
   maxIterations?: number;
   /** Optional sampling parameters forwarded to the provider. */
   inferenceOptions?: ChatStreamOptions['options'];
@@ -136,7 +136,7 @@ export async function runToolCallLoop(
     tools,
     toolExecutor,
     onEvent,
-    maxIterations = 10,
+    maxIterations = 6,
     dangerousTools = new Set<string>(),
     provider: explicitProvider,
     inferenceOptions,
@@ -154,6 +154,10 @@ export async function runToolCallLoop(
   const history: ChatMessage[] = [...messages];
   let totalTokens = 0;
 
+  // Pre-compute provider tools once (only recompute when tools get disabled)
+  let lastActiveToolCount = tools.length;
+  let cachedProviderTools = providerTools;
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     // ── Check stop conditions ─────────────────────────────────────────────
     const stopCheck = checkStopConditions({
@@ -166,9 +170,16 @@ export async function runToolCallLoop(
       break;
     }
 
-    // Filter out disabled tools
+    // Filter out disabled tools — reuse cached tools when nothing changed
     const activeTools = tools.filter((t) => !retryStrategy.isDisabled(t.name));
-    const activeProviderTools = toProviderTools(activeTools);
+    let activeProviderTools: ChatTool[];
+    if (activeTools.length === lastActiveToolCount) {
+      activeProviderTools = cachedProviderTools;
+    } else {
+      activeProviderTools = toProviderTools(activeTools);
+      cachedProviderTools = activeProviderTools;
+      lastActiveToolCount = activeTools.length;
+    }
 
     const parser = new StreamParser();
     const pendingToolCalls: PendingToolCall[] = [];

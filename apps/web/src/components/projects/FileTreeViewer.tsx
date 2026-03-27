@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ReactElement } from 'react';
+import React, { useState, useEffect, type ReactElement } from 'react';
 
 interface TreeNode {
   name: string;
@@ -48,7 +48,7 @@ export function FileTreeViewer({ rootPath }: Props) {
     });
   };
 
-  const renderNode = (node: TreeNode, depth = 0): ReactElement => (
+  const renderNode = (node: TreeNode, depth = 0): React.JSX.Element => (
     <div key={node.path} style={{ paddingLeft: depth * 16 }}>
       <div
         className="flex items-center gap-1.5 py-0.5 px-1 rounded text-sm cursor-pointer hover:bg-white/5"
@@ -67,7 +67,7 @@ export function FileTreeViewer({ rootPath }: Props) {
         )}
         <span className="truncate">{node.name}</span>
       </div>
-      {node.type === 'directory' && expanded.has(node.path) && node.children?.map((child) => renderNode(child, depth + 1))}
+      {node.type === 'directory' && expanded.has(node.path) && node.children?.map((child) => <React.Fragment key={child.path}>{renderNode(child, depth + 1)}</React.Fragment>)}
     </div>
   );
 

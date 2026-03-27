@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { type Message } from '@/store/chat.store';
 import { MarkdownContent } from '@/lib/markdown';
 import { ToolCallDisplay } from './ToolCallDisplay';
@@ -78,7 +78,7 @@ function ThinkingBlock({ content }: { content: string }) {
   );
 }
 
-function ArtifactButton({ artifactId, title, type }: { artifactId: string; title: string; type: string }) {
+const ArtifactButton = React.memo(function ArtifactButton({ artifactId, title, type }: { artifactId: string; title: string; type: string }) {
   const artifact = useArtifactStore((s) => s.history.find((a) => a.id === artifactId));
   const setArtifact = useArtifactStore((s) => s.setArtifact);
   const isActive = useArtifactStore((s) => s.activeArtifact?.id === artifactId);
@@ -140,9 +140,9 @@ function ArtifactButton({ artifactId, title, type }: { artifactId: string; title
       </svg>
     </button>
   );
-}
+});
 
-export function MessageBubble({ message, isStreaming }: Props) {
+export const MessageBubble = React.memo(function MessageBubble({ message, isStreaming }: Props) {
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
 
@@ -257,4 +257,18 @@ export function MessageBubble({ message, isStreaming }: Props) {
   }
 
   return null;
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison: skip re-render if key message fields and streaming state are unchanged
+  const prevMsg = prevProps.message;
+  const nextMsg = nextProps.message;
+  return (
+    prevMsg.id === nextMsg.id &&
+    prevMsg.content === nextMsg.content &&
+    prevMsg.role === nextMsg.role &&
+    prevProps.isStreaming === nextProps.isStreaming &&
+    prevMsg.thinking === nextMsg.thinking &&
+    prevMsg.toolCalls === nextMsg.toolCalls &&
+    prevMsg.artifacts === nextMsg.artifacts &&
+    prevMsg.subAgentResults === nextMsg.subAgentResults
+  );
+});

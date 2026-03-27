@@ -150,7 +150,7 @@ export function CommandPalette() {
       // Ctrl+Shift+A — open auto task
       if (e.ctrlKey && e.shiftKey && e.key === 'A') {
         e.preventDefault();
-        autoTaskStore.setOpen(true);
+        setAutoTaskOpen(true);
         return;
       }
 

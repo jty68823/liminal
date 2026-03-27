@@ -9,9 +9,6 @@ import { mcpManager } from '@liminal/tools';
   getDb();
   console.log('[api] Database ready');
 
-  // Load enabled MCP servers from DB
-  await mcpManager.loadFromDb();
-
   const port = parseInt(process.env['API_PORT'] ?? '3001', 10);
   console.log(`Liminal API starting on port ${port}`);
   const server = serve({ fetch: app.fetch, port });
@@ -22,6 +19,13 @@ import { mcpManager } from '@liminal/tools';
       process.exit(1);
     }
     throw err;
+  });
+
+  // Load MCP servers in the background — don't block API startup
+  mcpManager.loadFromDb().then(() => {
+    console.log('[api] MCP servers loaded');
+  }).catch((err) => {
+    console.error('[api] MCP server loading error (non-fatal):', err);
   });
 
   process.on('exit', () => { mcpManager.stopAll().catch(() => {}); });

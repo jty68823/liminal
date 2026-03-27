@@ -1,8 +1,8 @@
 'use client';
 
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
 import { useChatStore, type Conversation } from '@/store/chat.store';
 
 interface ConversationGroup {
@@ -47,8 +47,56 @@ function groupConversations(conversations: Conversation[]): ConversationGroup[] 
 
 function truncateTitle(title: string, maxLen = 38): string {
   if (title.length <= maxLen) return title;
-  return title.slice(0, maxLen - 1) + '…';
+  return title.slice(0, maxLen - 1) + '\u2026';
 }
+
+/** Memoized individual conversation item to avoid re-rendering the entire list */
+const ConversationItem = React.memo(function ConversationItem({
+  conv,
+  isActive,
+  onSelect,
+}: {
+  conv: Conversation;
+  isActive: boolean;
+  onSelect?: () => void;
+}) {
+  return (
+    <Link
+      href={`/chat/${conv.id}`}
+      onClick={onSelect}
+      className={`conversation-item flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left group ${isActive ? 'active' : ''}`}
+      style={{
+        color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+      }}
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="flex-shrink-0 opacity-50"
+      >
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+      <span className="text-sm truncate flex-1 leading-snug">
+        {truncateTitle(conv.title ?? 'Untitled conversation')}
+      </span>
+      {isActive && (
+        <div
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{
+            background: 'var(--color-accent-primary)',
+            boxShadow: '0 0 6px rgba(212,149,107,0.4)',
+          }}
+        />
+      )}
+    </Link>
+  );
+});
 
 interface Props {
   onSelect?: () => void;
@@ -99,46 +147,14 @@ export function ConversationList({ onSelect }: Props) {
           >
             {group.label}
           </p>
-          {group.items.map((conv) => {
-            const isActive = conv.id === currentId;
-            return (
-              <Link
-                key={conv.id}
-                href={`/chat/${conv.id}`}
-                onClick={onSelect}
-                className={`conversation-item flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left group ${isActive ? 'active' : ''}`}
-                style={{
-                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                }}
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="flex-shrink-0 opacity-50"
-                >
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-                <span className="text-sm truncate flex-1 leading-snug">
-                  {truncateTitle(conv.title ?? 'Untitled conversation')}
-                </span>
-                {isActive && (
-                  <div
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{
-                      background: 'var(--color-accent-primary)',
-                      boxShadow: '0 0 6px rgba(212,149,107,0.4)',
-                    }}
-                  />
-                )}
-              </Link>
-            );
-          })}
+          {group.items.map((conv) => (
+            <ConversationItem
+              key={conv.id}
+              conv={conv}
+              isActive={conv.id === currentId}
+              onSelect={onSelect}
+            />
+          ))}
         </div>
       ))}
     </div>

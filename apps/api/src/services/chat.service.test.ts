@@ -173,7 +173,7 @@ describe('runChat', () => {
 
       expect(getConversation).toHaveBeenCalledWith('existing-conv');
       expect(createConversation).not.toHaveBeenCalled();
-      expect(getMessages).toHaveBeenCalledWith('existing-conv', { limit: 200 });
+      expect(getMessages).toHaveBeenCalledWith('existing-conv', { limit: 50 });
     });
 
     it('calls onError when conversation not found', async () => {
@@ -233,7 +233,7 @@ describe('runChat', () => {
 
       await runChat(req, cb);
 
-      expect(searchMemoryBySimilarity).toHaveBeenCalledWith(vec, expect.objectContaining({ k: 5 }));
+      expect(searchMemoryBySimilarity).toHaveBeenCalledWith(vec, expect.objectContaining({ k: 3 }));
       expect(buildSystemPrompt).toHaveBeenCalledWith(
         expect.objectContaining({
           memory: ['User likes TypeScript', 'Project uses Hono'],
@@ -241,20 +241,17 @@ describe('runChat', () => {
       );
     });
 
-    it('falls back to listMemory when embed fails', async () => {
+    it('skips memory when embed fails', async () => {
       (embed as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Ollama not running'));
-      (listMemory as ReturnType<typeof vi.fn>).mockReturnValue([
-        { content: 'Fallback memory' },
-      ]);
 
-      const req: ChatRequest = { content: 'Hello' };
+      const req: ChatRequest = { content: 'Hello there friend' };
       const cb = makeCallbacks();
 
       await runChat(req, cb);
 
-      expect(listMemory).toHaveBeenCalled();
+      expect(listMemory).not.toHaveBeenCalled();
       expect(buildSystemPrompt).toHaveBeenCalledWith(
-        expect.objectContaining({ memory: ['Fallback memory'] }),
+        expect.objectContaining({ memory: undefined }),
       );
     });
   });

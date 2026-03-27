@@ -1,8 +1,31 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { useChatStore } from '@/store/chat.store';
 import { MessageBubble } from './MessageBubble';
+
+/** Max number of messages rendered at once (older ones are dropped from DOM) */
+const MAX_RENDERED_MESSAGES = 100;
+
+/** Memoized wrapper for individual message items to prevent unnecessary re-renders */
+const MessageItem = React.memo(function MessageItem({
+  message,
+  showAnimation,
+}: {
+  message: ReturnType<typeof useChatStore.getState>['messages'][number];
+  showAnimation: boolean;
+}) {
+  return (
+    <div
+      className={showAnimation ? 'message-enter-premium' : ''}
+      style={showAnimation ? { animationDelay: '0.05s' } : undefined}
+    >
+      <MessageBubble message={message} />
+    </div>
+  );
+}, (prev, next) => {
+  return prev.message === next.message && prev.showAnimation === next.showAnimation;
+});
 
 export function MessageList() {
   const messages = useChatStore((s) => s.messages);
@@ -16,8 +39,27 @@ export function MessageList() {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
 
-  // Throttle scrollIntoView to one call per animation frame
+  // Track whether user is at the bottom of the scroll area
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // IntersectionObserver to detect when the bottom sentinel is visible
   useEffect(() => {
+    const sentinel = bottomRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsAtBottom(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  // Throttle scrollIntoView to one call per animation frame — only auto-scroll if user is at bottom
+  useEffect(() => {
+    if (!isAtBottom) return;
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null;
@@ -26,10 +68,23 @@ export function MessageList() {
         el.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth', block: 'end' });
       }
     });
-  }, [messages.length, streamingContent, thinkingContent, isStreaming]);
+  }, [messages.length, streamingContent, thinkingContent, isStreaming, isAtBottom]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = bottomRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, []);
 
   // Stable createdAt for the streaming message — only changes when streaming starts
   const streamingCreatedAt = useMemo(() => new Date().toISOString(), [isStreaming]);
+
+  // Limit rendered messages to avoid DOM overload in long conversations
+  const renderedMessages = useMemo(() => {
+    if (messages.length <= MAX_RENDERED_MESSAGES) return messages;
+    return messages.slice(-MAX_RENDERED_MESSAGES);
+  }, [messages]);
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -73,18 +128,32 @@ export function MessageList() {
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto"
+      className="h-full overflow-y-auto relative"
       style={{ scrollbarWidth: 'thin' }}
     >
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-1">
-        {messages.map((message, idx) => (
-          <div
-            key={message.id}
-            className={idx > 0 ? 'message-enter-premium' : ''}
-            style={idx > 0 ? { animationDelay: '0.05s' } : undefined}
-          >
-            <MessageBubble message={message} />
+        {/* Truncation notice when messages are clipped */}
+        {messages.length > MAX_RENDERED_MESSAGES && (
+          <div className="text-center py-2">
+            <span
+              className="text-xs px-3 py-1 rounded-full"
+              style={{
+                background: 'var(--color-bg-elevated)',
+                color: 'var(--color-text-muted)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              {messages.length - MAX_RENDERED_MESSAGES} older messages hidden
+            </span>
           </div>
+        )}
+
+        {renderedMessages.map((message, idx) => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            showAnimation={idx > 0}
+          />
         ))}
 
         {/* Streaming message */}
@@ -109,6 +178,37 @@ export function MessageList() {
 
         <div ref={bottomRef} className="h-4" />
       </div>
+
+      {/* Scroll-to-bottom floating button */}
+      {!isAtBottom && (
+        <button
+          onClick={scrollToBottom}
+          className="fixed z-50 flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+          style={{
+            bottom: '120px',
+            right: '50%',
+            transform: 'translateX(50%)',
+            background: 'var(--color-bg-elevated)',
+            border: '1px solid var(--color-border-default)',
+            color: 'var(--color-text-secondary)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}
+          aria-label="Scroll to bottom"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

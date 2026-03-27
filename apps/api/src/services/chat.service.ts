@@ -4,7 +4,6 @@ import {
   getMessages,
   createMessage,
   getProject,
-  listMemory,
   searchMemoryBySimilarity,
   updateConversation,
 } from '@liminal/db';
@@ -100,7 +99,7 @@ export async function runChat(
   // ── 2. Load conversation history ──────────────────────────────────────────
   let dbMessages: ReturnType<typeof getMessages>;
   try {
-    dbMessages = getMessages(convId, { limit: 200 });
+    dbMessages = getMessages(convId, { limit: 50 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error({ err: msg }, 'DB error loading messages');
@@ -111,25 +110,34 @@ export async function runChat(
   const historyMessages: Message[] = dbMessages.map(dbMessageToCore);
 
   // ── 3. Build system prompt ────────────────────────────────────────────────
+  // Fetch project prompt and memory snippets in parallel to reduce latency
   let projectPrompt: string | undefined;
-  if (projectId) {
+  let memorySnippets: string[] = [];
+
+  const projectPromptPromise = (async () => {
+    if (!projectId) return;
     try {
       const project = getProject(projectId);
       if (project?.systemPrompt) projectPrompt = project.systemPrompt;
     } catch { /* non-fatal */ }
-  }
+  })();
 
-  let memorySnippets: string[] = [];
-  try {
-    const queryVec = await embed(content);
-    const topMem = searchMemoryBySimilarity(queryVec, { projectId: projectId ?? undefined, k: 5 });
-    memorySnippets = topMem.map((m) => m.content);
-  } catch {
+  const memoryPromise = (async () => {
+    // Skip memory search for very short messages (greetings, "ok", "yes", etc.)
+    // — embedding + similarity search adds latency with minimal value
+    if (content.trim().length < 10) return;
+
     try {
-      const memoryRows = listMemory({ projectId: projectId ?? undefined, limit: 10 });
-      memorySnippets = memoryRows.map((m) => m.content);
-    } catch { /* non-fatal */ }
-  }
+      const queryVec = await embed(content);
+      const topMem = searchMemoryBySimilarity(queryVec, { projectId: projectId ?? undefined, k: 3 });
+      memorySnippets = topMem.map((m) => m.content);
+    } catch {
+      // Embedding failed — bail out entirely instead of falling back to
+      // a full listMemory scan which adds latency with poor relevance
+    }
+  })();
+
+  await Promise.all([projectPromptPromise, memoryPromise]);
 
   const systemPrompt = buildSystemPrompt({
     projectPrompt,
@@ -272,29 +280,35 @@ export async function runChat(
   }
 
   // Fire-and-forget: extract key facts for memory
-  const _convIdForMemory = convId;
+  // Skip for short exchanges (< 50 chars user + < 100 chars assistant)
+  // — they rarely contain memorable facts and the LLM call adds latency
+  // for the next request (competes for GPU/CPU with the next inference)
   const _contentForMemory = content;
   const _textForMemory = fullAssistantText;
-  setImmediate(async () => {
-    try {
-      const provider = providerRegistry.getActive();
-      const { addMemoryWithEmbedding } = await import('./memory.service.js');
-      const extractPrompt = `Extract 1-3 short factual statements worth remembering from this conversation exchange. Reply with ONLY a JSON array of strings like ["User prefers TypeScript", "Project uses Hono"]. If nothing worth remembering, reply [].
+  if (_contentForMemory.length >= 50 || _textForMemory.length >= 100) {
+    const _convIdForMemory = convId;
+    setImmediate(async () => {
+      try {
+        const provider = providerRegistry.getActive();
+        const { addMemoryWithEmbedding } = await import('./memory.service.js');
+        const extractPrompt = `Extract 1-3 short factual statements worth remembering from this conversation exchange. Reply with ONLY a JSON array of strings like ["User prefers TypeScript", "Project uses Hono"]. If nothing worth remembering, reply [].
 
 User said: "${_contentForMemory.slice(0, 300)}"
 Assistant said: "${_textForMemory.slice(0, 300)}"`;
-      const r = await provider.chat({
-        model: model ?? process.env['LIMINAL_DEFAULT_MODEL'] ?? 'Meta-Llama-3.1-8B-Instruct-Q4_K_M',
-        messages: [{ role: 'user', content: extractPrompt }],
-      });
-      const match = r.message.content.match(/\[[\s\S]*?\]/);
-      if (!match) return;
-      const facts: string[] = JSON.parse(match[0]);
-      for (const fact of facts.slice(0, 3)) {
-        if (typeof fact === 'string' && fact.trim()) {
-          await addMemoryWithEmbedding({ content: fact, conversationId: _convIdForMemory, source: 'auto' });
+        const r = await provider.chat({
+          model: model ?? process.env['LIMINAL_DEFAULT_MODEL'] ?? 'Meta-Llama-3.1-8B-Instruct-Q4_K_M',
+          messages: [{ role: 'user', content: extractPrompt }],
+          options: { num_predict: 256, temperature: 0.3 },
+        });
+        const match = r.message.content.match(/\[[\s\S]*?\]/);
+        if (!match) return;
+        const facts: string[] = JSON.parse(match[0]);
+        for (const fact of facts.slice(0, 3)) {
+          if (typeof fact === 'string' && fact.trim()) {
+            await addMemoryWithEmbedding({ content: fact, conversationId: _convIdForMemory, source: 'auto' });
+          }
         }
-      }
-    } catch { /* non-fatal */ }
-  });
+      } catch { /* non-fatal */ }
+    });
+  }
 }

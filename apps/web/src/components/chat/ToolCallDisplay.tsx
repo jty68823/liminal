@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { type ToolCall } from '@/store/chat.store';
 
 interface Props {
@@ -49,7 +49,7 @@ function getToolIcon(name: string): React.ReactNode {
   );
 }
 
-export function ToolCallDisplay({ toolCall }: Props) {
+export const ToolCallDisplay = React.memo(function ToolCallDisplay({ toolCall }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const isDone = !toolCall.isPending;
   const isError = toolCall.isError;
@@ -198,4 +198,4 @@ export function ToolCallDisplay({ toolCall }: Props) {
       )}
     </div>
   );
-}
+});

@@ -72,12 +72,12 @@ messagesRouter.post('/', async (c) => {
     let finalConversationId = conversation_id ?? '';
     let finalAssistantMessageId = '';
 
-    // Buffer token deltas: batch every 30ms or 200 chars to reduce SSE frame overhead
+    // Buffer token deltas: batch every 16ms (one frame) or 120 chars for snappy perceived streaming
     const tokenBuffer = new TokenStreamBuffer(
       async (batchedText) => {
         await stream.writeSSE({ event: 'token', data: JSON.stringify({ type: 'token', delta: batchedText }) });
       },
-      { flushIntervalMs: 30, maxBufferSize: 200 },
+      { flushIntervalMs: 16, maxBufferSize: 120 },
     );
 
     try {

@@ -162,6 +162,18 @@ export class OpenAICompatProvider implements InferenceProvider {
       body.max_tokens = options.options.num_predict;
     }
 
+    // Ollama-specific performance options (ignored by non-Ollama endpoints)
+    // num_ctx: smaller context window = faster prompt eval
+    // keep_alive: keep model loaded in VRAM between requests (avoid reload)
+    if (options.options?.num_ctx !== undefined) {
+      body.num_ctx = options.options.num_ctx;
+    } else {
+      // Default to 4096 for faster inference — most conversations fit easily
+      body.num_ctx = 4096;
+    }
+    // Keep model loaded for 30 minutes to avoid cold-start reload
+    body.keep_alive = '30m';
+
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
@@ -321,6 +333,14 @@ export class OpenAICompatProvider implements InferenceProvider {
     if (options.options?.num_predict !== undefined) {
       body.max_tokens = options.options.num_predict;
     }
+
+    // Ollama-specific performance options
+    if (options.options?.num_ctx !== undefined) {
+      body.num_ctx = options.options.num_ctx;
+    } else {
+      body.num_ctx = 4096;
+    }
+    body.keep_alive = '30m';
 
     const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',

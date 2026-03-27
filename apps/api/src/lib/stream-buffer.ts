@@ -5,15 +5,15 @@
  * HTTP overhead and improve perceived streaming smoothness.
  *
  * Strategy:
- * - Buffer tokens for up to `flushIntervalMs` (default: 30ms)
- * - Flush immediately when buffer exceeds `maxBufferSize` (default: 500 chars)
+ * - Buffer tokens for up to `flushIntervalMs` (default: 16ms — one frame at 60fps)
+ * - Flush immediately when buffer exceeds `maxBufferSize` (default: 200 chars)
  * - Always flush on explicit flush() or when stream ends
  */
 
 export interface StreamBufferOptions {
-  /** Max time to wait before flushing (ms). Default: 30 */
+  /** Max time to wait before flushing (ms). Default: 16 (one frame) */
   flushIntervalMs?: number;
-  /** Max chars to buffer before forcing a flush. Default: 500 */
+  /** Max chars to buffer before forcing a flush. Default: 200 */
   maxBufferSize?: number;
 }
 
@@ -28,8 +28,8 @@ export class TokenStreamBuffer {
 
   constructor(onFlush: (text: string) => Promise<void>, options: StreamBufferOptions = {}) {
     this.onFlush = onFlush;
-    this.flushIntervalMs = options.flushIntervalMs ?? 30;
-    this.maxBufferSize = options.maxBufferSize ?? 500;
+    this.flushIntervalMs = options.flushIntervalMs ?? 16;
+    this.maxBufferSize = options.maxBufferSize ?? 200;
   }
 
   /** Add a token delta to the buffer. */

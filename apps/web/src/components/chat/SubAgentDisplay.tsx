@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { type SubAgentResult } from '@/store/chat.store';
 
 interface Props {
   results: SubAgentResult[];
 }
 
-export function SubAgentDisplay({ results }: Props) {
+export const SubAgentDisplay = React.memo(function SubAgentDisplay({ results }: Props) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const toggle = (idx: number) => {
@@ -98,4 +98,4 @@ export function SubAgentDisplay({ results }: Props) {
       ))}
     </div>
   );
-}
+});
