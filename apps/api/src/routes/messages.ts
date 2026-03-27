@@ -210,6 +210,15 @@ messagesRouter.post('/', async (c) => {
         event: 'error',
         data: JSON.stringify({ type: 'error', message: `Fatal: ${msg}` }),
       });
+    } finally {
+      // Clean up autonomous event listener
+      if (autonomousHandler) {
+        try {
+          const { autonomousEventBus } = await import('@liminal/tools');
+          autonomousEventBus.removeListener('progress', autonomousHandler);
+          autonomousEventBus.removeListener('complete', autonomousHandler);
+        } catch { /* already cleaned */ }
+      }
     }
     console.log('[messages] streamSSE handler complete');
   });
