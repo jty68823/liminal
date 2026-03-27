@@ -15,6 +15,8 @@ import { settingsRouter } from './routes/settings.js';
 import { documentsRouter } from './routes/documents.js';
 import { coworkRouter } from './routes/cowork.js';
 import { autoTaskRouter } from './routes/auto-task.js';
+import { dispatchRouter } from './routes/dispatch.js';
+import { dispatchWsRouter } from './routes/dispatch-ws.js';
 import { rateLimiter } from './middleware/rate-limiter.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { requestId } from './middleware/request-id.js';
@@ -24,7 +26,7 @@ import { performanceMiddleware, getPerformanceStats } from './middleware/perform
 export const app = new Hono();
 
 app.use('*', logger());
-app.use('*', cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000'] }));
+app.use('*', cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000', /\.ts\.net(:\d+)?$/] }));
 app.use('*', securityHeaders());
 app.use('*', requestId());
 app.use('*', performanceMiddleware());
@@ -78,5 +80,7 @@ app.route('/api/v1/settings', settingsRouter);
 app.route('/api/v1/documents', documentsRouter);
 app.route('/api/v1/cowork', coworkRouter);
 app.route('/api/v1/auto-task', autoTaskRouter);
+app.route('/api/v1/dispatch', dispatchRouter);
+app.route('/api/v1/dispatch', dispatchWsRouter);
 
 export default app;
