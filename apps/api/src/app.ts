@@ -56,6 +56,46 @@ app.get('/', (c) => c.json({
 // Performance metrics endpoint
 app.get('/health/metrics', (c) => c.json(getPerformanceStats()));
 
+// Deep health check — verifies DB, Ollama, and provider connectivity
+app.get('/health/deep', async (c) => {
+  const checks: Record<string, { status: string; latencyMs?: number; error?: string }> = {};
+
+  // DB check
+  const dbStart = Date.now();
+  try {
+    const { getDb } = await import('@liminal/db');
+    const db = getDb();
+    // Quick query to verify DB is responsive
+    db.select().from((await import('@liminal/db')).settings).limit(1).all();
+    checks['database'] = { status: 'ok', latencyMs: Date.now() - dbStart };
+  } catch (err) {
+    checks['database'] = { status: 'error', latencyMs: Date.now() - dbStart, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  // Ollama check
+  const ollamaStart = Date.now();
+  try {
+    const ollamaHost = process.env['OLLAMA_HOST'] ?? 'http://localhost:11434';
+    const res = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    checks['ollama'] = { status: res.ok ? 'ok' : 'degraded', latencyMs: Date.now() - ollamaStart };
+  } catch (err) {
+    checks['ollama'] = { status: 'error', latencyMs: Date.now() - ollamaStart, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  // Provider check
+  const providerStart = Date.now();
+  try {
+    const { providerRegistry } = await import('@liminal/inference');
+    const provider = providerRegistry.getActive();
+    checks['provider'] = { status: provider ? 'ok' : 'no_active_provider', latencyMs: Date.now() - providerStart };
+  } catch (err) {
+    checks['provider'] = { status: 'error', latencyMs: Date.now() - providerStart, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  const allOk = Object.values(checks).every((ch) => ch.status === 'ok');
+  return c.json({ status: allOk ? 'ok' : 'degraded', timestamp: Date.now(), checks }, allOk ? 200 : 503);
+});
+
 // SSE test endpoint
 app.get('/test-sse', (c) => {
   return streamSSE(c, async (stream) => {

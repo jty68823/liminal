@@ -36,6 +36,30 @@ if (process.env['ENABLE_COMPUTER_USE'] === '1') {
     registry.register(keyTool);
     registry.register(scrollTool);
   }).catch(() => {});
+
+  // OCR, screen analyzer, action planner
+  import('./computer-use/ocr.js').then(({ ocrTool }) => registry.register(ocrTool)).catch(() => {});
+  import('./computer-use/screen-analyzer.js').then(({ screenAnalyzerTool }) => registry.register(screenAnalyzerTool)).catch(() => {});
+  import('./computer-use/action-planner.js').then(({ actionPlannerTool }) => registry.register(actionPlannerTool)).catch(() => {});
+
+  // Dispatch layer (smart router: API → Browser → Screen)
+  import('./computer-use/dispatch/tool.js').then(({ computerDispatchTool }) => registry.register(computerDispatchTool)).catch(() => {});
+
+  // Browser automation (Playwright)
+  import('./computer-use/browser/tools.js').then(({
+    browserNavigateTool, browserClickTool, browserTypeTool,
+    browserExtractTool, browserScreenshotTool, browserWaitTool,
+  }) => {
+    registry.register(browserNavigateTool);
+    registry.register(browserClickTool);
+    registry.register(browserTypeTool);
+    registry.register(browserExtractTool);
+    registry.register(browserScreenshotTool);
+    registry.register(browserWaitTool);
+  }).catch(() => {});
+
+  // Autonomous agent loop
+  import('./computer-use/autonomous/tool.js').then(({ computerAutonomousTaskTool }) => registry.register(computerAutonomousTaskTool)).catch(() => {});
 }
 
 export { registry };
@@ -59,6 +83,14 @@ export { dispatchAgentsTool } from './dispatch-agents.js';
 export { validateSkill } from './skills/skill-validator.js';
 export { parseSkillContent, buildSkillPrompt, analyzeSkill } from './skills/skill-engine.js';
 export { screenshotTool, clickTool, typeTool, keyTool, scrollTool } from './computer-use.js';
+
+// Computer-use extended tools
+export { computerDispatchTool } from './computer-use/dispatch/tool.js';
+export { browserNavigateTool, browserClickTool, browserTypeTool, browserExtractTool, browserScreenshotTool, browserWaitTool } from './computer-use/browser/tools.js';
+export { computerAutonomousTaskTool } from './computer-use/autonomous/tool.js';
+export { browserManager } from './computer-use/browser/manager.js';
+export { autonomousEventBus } from './computer-use/autonomous/event-bus.js';
+export type { AutonomousProgressEvent, AutonomousCompleteEvent } from './computer-use/autonomous/event-bus.js';
 
 // Security utilities (for Auto Task)
 export { scanFile, scanFileHash, scanContentPatterns } from './security/virus-scanner.js';
