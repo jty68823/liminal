@@ -1,7 +1,7 @@
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql, like, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getDb } from '../client.js';
-import { conversations } from '../schema.js';
+import { conversations, messages } from '../schema.js';
 
 export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
@@ -74,4 +74,56 @@ export function updateConversation(id: string, data: Partial<Omit<Conversation, 
 export function deleteConversation(id: string): void {
   const db = getDb();
   db.delete(conversations).where(eq(conversations.id, id)).run();
+}
+
+/**
+ * Search conversations by title or message content using LIKE matching.
+ */
+export function searchConversations(query: string, options: { projectId?: string; limit?: number } = {}): Conversation[] {
+  const db = getDb();
+  const { projectId, limit = 20 } = options;
+  const pattern = `%${query}%`;
+
+  // Search by title
+  const conditions = [like(conversations.title, pattern)];
+  if (projectId) {
+    return db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.projectId, projectId), like(conversations.title, pattern)))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(limit)
+      .all();
+  }
+
+  // Also search in message content and merge
+  const byTitle = db
+    .select()
+    .from(conversations)
+    .where(like(conversations.title, pattern))
+    .orderBy(desc(conversations.updatedAt))
+    .limit(limit)
+    .all();
+
+  if (byTitle.length >= limit) return byTitle;
+
+  // Search message content for additional matches
+  const byMessage = db
+    .selectDistinct({ id: messages.conversationId })
+    .from(messages)
+    .where(like(messages.content, pattern))
+    .limit(limit)
+    .all();
+
+  const titleIds = new Set(byTitle.map((c) => c.id));
+  const extraIds = byMessage.map((m) => m.id).filter((id) => id && !titleIds.has(id));
+
+  if (extraIds.length === 0) return byTitle;
+
+  const extraConvs = extraIds
+    .slice(0, limit - byTitle.length)
+    .map((id) => db.select().from(conversations).where(eq(conversations.id, id)).get())
+    .filter((c): c is Conversation => c != null);
+
+  return [...byTitle, ...extraConvs];
 }
