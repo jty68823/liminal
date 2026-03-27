@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS auto_task_runs (
   status TEXT NOT NULL DEFAULT 'pending',
   plan TEXT, result TEXT, error TEXT,
   total_tokens INTEGER DEFAULT 0, duration_ms INTEGER,
+  max_concurrent INTEGER DEFAULT 3,
+  concurrency_strategy TEXT DEFAULT 'fixed',
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS auto_task_events (
@@ -105,6 +107,21 @@ CREATE INDEX IF NOT EXISTS idx_cowork_messages_session ON cowork_messages(sessio
 CREATE INDEX IF NOT EXISTS idx_conv_summaries_conv ON conversation_summaries(conversation_id, from_sequence);
 CREATE INDEX IF NOT EXISTS idx_auto_task_events_run ON auto_task_events(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_auto_task_runs_status ON auto_task_runs(status, created_at);
+
+CREATE TABLE IF NOT EXISTS dispatch_tasks (
+  id TEXT PRIMARY KEY, source TEXT NOT NULL DEFAULT 'api',
+  instruction TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+  result TEXT, screenshot_base64 TEXT, progress INTEGER DEFAULT 0,
+  model TEXT, conversation_id TEXT, error_message TEXT,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, completed_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS dispatch_events (
+  id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+  type TEXT NOT NULL, payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dispatch_tasks_status ON dispatch_tasks(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_dispatch_events_task ON dispatch_events(task_id, created_at);
 `;
 
 export function getDb(dbPath?: string): DrizzleDb {
@@ -122,6 +139,8 @@ export function getDb(dbPath?: string): DrizzleDb {
   // Auto-initialize tables
   sqlite.exec(INIT_SQL);
   try { sqlite.exec('ALTER TABLE messages ADD COLUMN images TEXT'); } catch {}
+  try { sqlite.exec('ALTER TABLE auto_task_runs ADD COLUMN max_concurrent INTEGER DEFAULT 3'); } catch {}
+  try { sqlite.exec('ALTER TABLE auto_task_runs ADD COLUMN concurrency_strategy TEXT DEFAULT \'fixed\''); } catch {}
   db = drizzle(sqlite, { schema });
   return db;
 }
