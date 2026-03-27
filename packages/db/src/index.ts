@@ -21,6 +21,8 @@ export {
   coworkMessages,
   autoTaskRuns,
   autoTaskEvents,
+  dispatchTasks,
+  dispatchEvents,
 } from './schema.js';
 
 // Conversation queries
@@ -120,6 +122,18 @@ export {
   getAutoTaskEvents,
 } from './queries/auto-task.js';
 export type { AutoTaskRun, AutoTaskEvent } from './queries/auto-task.js';
+
+// Dispatch queries
+export {
+  createDispatchTask,
+  getDispatchTask,
+  listDispatchTasks,
+  updateDispatchTask,
+  deleteDispatchTask,
+  appendDispatchEvent,
+  getDispatchEvents,
+} from './queries/dispatch.js';
+export type { DispatchTask, DispatchEvent } from './queries/dispatch.js';
 
 // Re-export drizzle-orm helpers so consumers use the same instance
 export { eq, and, or, desc, asc, like, sql } from 'drizzle-orm';

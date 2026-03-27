@@ -201,3 +201,29 @@ export const autoTaskEvents = sqliteTable('auto_task_events', {
   subtaskId: text('subtask_id'),
   createdAt: integer('created_at').notNull(),
 });
+
+// dispatch_tasks table (remote command execution)
+export const dispatchTasks = sqliteTable('dispatch_tasks', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull().default('api'), // api, ios, cli
+  instruction: text('instruction').notNull(),
+  status: text('status').notNull().default('pending'), // pending, running, completed, failed, cancelled
+  result: text('result'),
+  screenshotBase64: text('screenshot_base64'),
+  progress: integer('progress').default(0), // 0-100
+  model: text('model'),
+  conversationId: text('conversation_id'),
+  errorMessage: text('error_message'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  completedAt: integer('completed_at'),
+});
+
+// dispatch_events table (real-time event log for dispatch tasks)
+export const dispatchEvents = sqliteTable('dispatch_events', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  type: text('type').notNull(), // task_progress, task_token, task_screenshot, task_complete, task_error
+  payload: text('payload').notNull(),
+  createdAt: integer('created_at').notNull(),
+});

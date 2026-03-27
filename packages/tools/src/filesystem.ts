@@ -4,6 +4,49 @@ import { glob } from 'glob';
 import type { ToolHandler } from './registry.js';
 
 // ---------------------------------------------------------------------------
+// Security helpers
+// ---------------------------------------------------------------------------
+
+/** Maximum file size (50 MB) */
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+/** Sensitive file patterns that should not be read/written */
+const SENSITIVE_PATTERNS = [
+  /\.env$/i,
+  /\.env\.[a-z]+$/i,
+  /id_rsa/i,
+  /id_ed25519/i,
+  /\.pem$/i,
+  /\.key$/i,
+  /credentials\.json$/i,
+  /secrets?\.(json|ya?ml|toml)$/i,
+  /\/\.ssh\//,
+  /\/\.gnupg\//,
+  /\/\.aws\/credentials/,
+];
+
+function isSensitivePath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  return SENSITIVE_PATTERNS.some((p) => p.test(normalized));
+}
+
+/**
+ * Validates a file path against path traversal attacks.
+ * Resolves the path and ensures it stays within the working directory.
+ */
+function validatePath(filePath: string, cwd?: string): { valid: true; resolved: string } | { valid: false; error: string } {
+  const base = cwd ?? process.cwd();
+  const resolved = path.resolve(base, filePath);
+  // Allow absolute paths but check for traversal when relative
+  if (!path.isAbsolute(filePath)) {
+    if (!resolved.startsWith(path.resolve(base))) {
+      return { valid: false, error: `Path traversal detected: ${filePath}` };
+    }
+  }
+  return { valid: true, resolved };
+}
+
+// ---------------------------------------------------------------------------
 // read_file
 // ---------------------------------------------------------------------------
 
@@ -38,12 +81,24 @@ export const readFileTool: ToolHandler = {
       return 'Error: "path" must be a non-empty string.';
     }
 
+    const pathCheck = validatePath(filePath);
+    if (!pathCheck.valid) return `Error: ${pathCheck.error}`;
+    const resolvedPath = pathCheck.resolved;
+
+    if (isSensitivePath(resolvedPath)) {
+      return `Error: Access denied — sensitive file: ${filePath}`;
+    }
+
     const startLine = input['start_line'] as number | undefined;
     const endLine = input['end_line'] as number | undefined;
     const MAX_LINES = 2000;
 
     try {
-      const raw = await fs.readFile(filePath, 'utf-8');
+      const stat = await fs.stat(resolvedPath);
+      if (stat.size > MAX_FILE_SIZE) {
+        return `Error: File exceeds 50MB size limit (${Math.round(stat.size / 1024 / 1024)}MB): ${filePath}`;
+      }
+      const raw = await fs.readFile(resolvedPath, 'utf-8');
       const allLines = raw.split('\n');
 
       // Resolve 1-indexed range to 0-indexed slice bounds
@@ -120,10 +175,22 @@ export const writeFileTool: ToolHandler = {
       return 'Error: "content" must be a string.';
     }
 
+    const pathCheck = validatePath(filePath);
+    if (!pathCheck.valid) return `Error: ${pathCheck.error}`;
+    const resolvedPath = pathCheck.resolved;
+
+    if (isSensitivePath(resolvedPath)) {
+      return `Error: Access denied — cannot write to sensitive file: ${filePath}`;
+    }
+
+    if (Buffer.byteLength(content, 'utf-8') > MAX_FILE_SIZE) {
+      return 'Error: Content exceeds 50MB size limit.';
+    }
+
     try {
-      const dir = path.dirname(filePath);
+      const dir = path.dirname(resolvedPath);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(filePath, content, 'utf-8');
+      await fs.writeFile(resolvedPath, content, 'utf-8');
       return `File written successfully: ${filePath}`;
     } catch (err: unknown) {
       const error = err as NodeJS.ErrnoException;
@@ -176,8 +243,16 @@ export const editFileTool: ToolHandler = {
       return 'Error: "new_string" must be a string.';
     }
 
+    const pathCheck = validatePath(filePath);
+    if (!pathCheck.valid) return `Error: ${pathCheck.error}`;
+    const resolvedPath = pathCheck.resolved;
+
+    if (isSensitivePath(resolvedPath)) {
+      return `Error: Access denied — cannot edit sensitive file: ${filePath}`;
+    }
+
     try {
-      const original = await fs.readFile(filePath, 'utf-8');
+      const original = await fs.readFile(resolvedPath, 'utf-8');
 
       // Count occurrences
       let count = 0;
@@ -197,7 +272,7 @@ export const editFileTool: ToolHandler = {
       }
 
       const updated = original.replace(oldString, newString);
-      await fs.writeFile(filePath, updated, 'utf-8');
+      await fs.writeFile(resolvedPath, updated, 'utf-8');
       return `File edited successfully: ${filePath}`;
     } catch (err: unknown) {
       const error = err as NodeJS.ErrnoException;
