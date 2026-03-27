@@ -136,6 +136,8 @@ export function getDb(dbPath?: string): DrizzleDb {
   sqlite.pragma('cache_size = -32000');   // 32MB page cache
   sqlite.pragma('temp_store = MEMORY');
   sqlite.pragma('mmap_size = 30000000');  // 30MB memory-mapped I/O
+  sqlite.pragma('busy_timeout = 5000');   // Wait up to 5s for locks
+  sqlite.pragma('journal_size_limit = 67108864'); // 64MB WAL limit
   // Auto-initialize tables
   sqlite.exec(INIT_SQL);
   try { sqlite.exec('ALTER TABLE messages ADD COLUMN images TEXT'); } catch {}

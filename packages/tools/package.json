@@ -22,14 +22,16 @@
   },
   "dependencies": {
     "@jitsi/robotjs": "^0.6.21",
-    "@modelcontextprotocol/sdk": "^1.27.1",
     "@liminal/core": "workspace:*",
     "@liminal/db": "workspace:*",
     "@liminal/inference": "workspace:^",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "glob": "^11.0.0",
+    "nanoid": "^5.1.7",
     "node-html-parser": "^7.1.0",
     "papaparse": "^5.5.3",
     "pdf-parse": "^2.4.5",
+    "playwright": "^1.58.2",
     "screenshot-desktop": "^1.15.3",
     "simple-git": "^3.27.0",
     "xlsx": "^0.18.5"
