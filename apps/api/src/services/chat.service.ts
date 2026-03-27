@@ -5,6 +5,7 @@ import {
   createMessage,
   getProject,
   searchMemoryBySimilarity,
+  listMemory,
   updateConversation,
 } from '@liminal/db';
 import {
@@ -131,9 +132,12 @@ export async function runChat(
       const queryVec = await embed(content);
       const topMem = searchMemoryBySimilarity(queryVec, { projectId: projectId ?? undefined, k: 3 });
       memorySnippets = topMem.map((m) => m.content);
-    } catch {
-      // Embedding failed — bail out entirely instead of falling back to
-      // a full listMemory scan which adds latency with poor relevance
+    } catch (embErr) {
+      log.warn({ err: embErr instanceof Error ? embErr.message : String(embErr) }, 'Embedding failed, falling back to recent memory');
+      try {
+        const recent = listMemory({ projectId: projectId ?? undefined, limit: 3 });
+        memorySnippets = recent.map((m) => m.content);
+      } catch { /* non-fatal */ }
     }
   })();
 

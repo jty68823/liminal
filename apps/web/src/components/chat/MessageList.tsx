@@ -6,6 +6,7 @@ import { MessageBubble } from './MessageBubble';
 
 /** Max number of messages rendered at once (older ones are dropped from DOM) */
 const MAX_RENDERED_MESSAGES = 100;
+const LOAD_MORE_STEP = 50;
 
 /** Memoized wrapper for individual message items to prevent unnecessary re-renders */
 const MessageItem = React.memo(function MessageItem({
@@ -80,11 +81,19 @@ export function MessageList() {
   // Stable createdAt for the streaming message — only changes when streaming starts
   const streamingCreatedAt = useMemo(() => new Date().toISOString(), [isStreaming]);
 
+  const [renderLimit, setRenderLimit] = useState(MAX_RENDERED_MESSAGES);
+
+  const loadOlderMessages = useCallback(() => {
+    setRenderLimit((prev) => Math.min(prev + LOAD_MORE_STEP, messages.length));
+  }, [messages.length]);
+
   // Limit rendered messages to avoid DOM overload in long conversations
   const renderedMessages = useMemo(() => {
-    if (messages.length <= MAX_RENDERED_MESSAGES) return messages;
-    return messages.slice(-MAX_RENDERED_MESSAGES);
-  }, [messages]);
+    if (messages.length <= renderLimit) return messages;
+    return messages.slice(-renderLimit);
+  }, [messages, renderLimit]);
+
+  const hiddenCount = messages.length - renderedMessages.length;
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -133,18 +142,19 @@ export function MessageList() {
     >
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-1">
         {/* Truncation notice when messages are clipped */}
-        {messages.length > MAX_RENDERED_MESSAGES && (
+        {hiddenCount > 0 && (
           <div className="text-center py-2">
-            <span
-              className="text-xs px-3 py-1 rounded-full"
+            <button
+              onClick={loadOlderMessages}
+              className="text-xs px-3 py-1.5 rounded-full transition-colors duration-150 cursor-pointer hover:brightness-125"
               style={{
                 background: 'var(--color-bg-elevated)',
                 color: 'var(--color-text-muted)',
                 border: '1px solid var(--color-border-subtle)',
               }}
             >
-              {messages.length - MAX_RENDERED_MESSAGES} older messages hidden
-            </span>
+              Load {Math.min(LOAD_MORE_STEP, hiddenCount)} older messages ({hiddenCount} hidden)
+            </button>
           </div>
         )}
 

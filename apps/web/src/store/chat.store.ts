@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { api } from '@/lib/api-client';
+import { useArtifactStore } from '@/store/artifact.store';
 
 // ── Token batching ──────────────────────────────────────────────────
 // Accumulates streaming and thinking tokens between animation frames
@@ -64,10 +65,11 @@ export interface ThinkingBlock {
 
 export interface Artifact {
   id: string;
-  type: 'code' | 'html' | 'mermaid' | 'react' | 'text';
+  type: 'code' | 'html' | 'mermaid' | 'react' | 'svg' | 'markdown' | 'text';
   title: string;
   language?: string;
   content: string;
+  version?: number;
 }
 
 export interface Message {
@@ -102,6 +104,7 @@ interface ChatStore {
   isThinking: boolean;
   pendingToolCalls: ToolCall[];
   pendingSubAgentResults: SubAgentResult[];
+  pendingArtifacts: Artifact[];
 
   // Actions
   setCurrentConversation(id: string): void;
@@ -112,6 +115,7 @@ interface ChatStore {
   finalizeStreamingMessage(messageId: string): void;
   addToolCallResult(callId: string, result: unknown, isError: boolean): void;
   addPendingToolCall(toolCall: ToolCall): void;
+  addPendingArtifact(artifact: Artifact): void;
   clearPendingToolCalls(): void;
   addSubAgentResult(result: SubAgentResult): void;
   loadConversations(): Promise<void>;
@@ -134,6 +138,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   isThinking: false,
   pendingToolCalls: [],
   pendingSubAgentResults: [],
+  pendingArtifacts: [],
   currentProjectId: null,
 
   setCurrentProjectId(id) {
@@ -153,6 +158,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         isThinking: false,
         pendingToolCalls: [],
         pendingSubAgentResults: [],
+        pendingArtifacts: [],
       });
       get().loadMessages(id);
     }
@@ -194,7 +200,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     _streamBuf = '';
     _thinkBuf = '';
 
-    const { streamingContent, thinkingContent, pendingToolCalls, pendingSubAgentResults, currentConversationId } = get();
+    const { streamingContent, thinkingContent, pendingToolCalls, pendingSubAgentResults, pendingArtifacts, currentConversationId } = get();
     const finalStreamContent = streamingContent + bufferedStream;
     const finalThinkContent = thinkingContent + bufferedThink;
 
@@ -208,6 +214,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ? [{ type: 'thinking', content: finalThinkContent }]
           : undefined,
       toolCalls: pendingToolCalls.length > 0 ? [...pendingToolCalls] : undefined,
+      artifacts: pendingArtifacts.length > 0 ? [...pendingArtifacts] : undefined,
       subAgentResults: pendingSubAgentResults.length > 0 ? [...pendingSubAgentResults] : undefined,
       createdAt: new Date().toISOString(),
     };
@@ -220,6 +227,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       isThinking: false,
       pendingToolCalls: [],
       pendingSubAgentResults: [],
+      pendingArtifacts: [],
     }));
   },
 
@@ -233,6 +241,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   addPendingToolCall(toolCall) {
     set((state) => ({ pendingToolCalls: [...state.pendingToolCalls, toolCall] }));
+  },
+
+  addPendingArtifact(artifact) {
+    set((state) => ({ pendingArtifacts: [...state.pendingArtifacts, artifact] }));
   },
 
   clearPendingToolCalls() {
@@ -264,6 +276,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       isThinking: false,
       pendingToolCalls: [],
       pendingSubAgentResults: [],
+      pendingArtifacts: [],
     });
   },
 
@@ -308,7 +321,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     };
     store.addMessage(userMessage);
 
-    // Set up streaming state
+    // Set up streaming state — cancel any prior stream's pending batch
+    if (_batchRaf !== null) {
+      cancelAnimationFrame(_batchRaf);
+      _batchRaf = null;
+    }
+    _streamBuf = '';
+    _thinkBuf = '';
+
     const streamingId = nanoid();
     set({
       isStreaming: true,
@@ -318,6 +338,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       isThinking: false,
       pendingToolCalls: [],
       pendingSubAgentResults: [],
+      pendingArtifacts: [],
     });
 
     try {
@@ -343,8 +364,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             get().addSubAgentResult(result);
           },
           onArtifact: (artifact) => {
-            // Artifact handled separately by artifact store
-            console.log('Artifact received:', artifact);
+            useArtifactStore.getState().setArtifact(artifact);
+            get().addPendingArtifact(artifact);
           },
           onDone: (messageId, newConversationId) => {
             if (newConversationId && !effectiveConvId) {
