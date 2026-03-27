@@ -27,6 +27,15 @@ const SUSPICIOUS_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /nc\s+(?:-[a-zA-Z]*[le]|-[a-zA-Z]*[le])\s+/, name: 'netcat_listener' },
   { pattern: /python[23]?\s+-c\s+['"]import\s+(?:os|subprocess)/, name: 'python_exec' },
   { pattern: /:\s*\(\s*\)\s*\{.*:.*\|.*&\s*\};\s*:/, name: 'fork_bomb' },
+  // Windows-specific dangerous patterns
+  { pattern: /powershell\s+.*(?:Invoke-WebRequest|iwr|wget|curl).*\|\s*(?:iex|Invoke-Expression)/, name: 'powershell_download_exec' },
+  { pattern: /powershell\s+.*-(?:enc|encodedcommand)\s+/, name: 'powershell_encoded' },
+  { pattern: /reg\s+(?:add|delete)\s+HKLM/i, name: 'registry_modify_hklm' },
+  { pattern: /reg\s+(?:add|delete)\s+HKCU/i, name: 'registry_modify_hkcu' },
+  { pattern: /netsh\s+.*firewall/i, name: 'firewall_modify' },
+  { pattern: /\bnet\s+user\s+.*\/add/i, name: 'user_creation' },
+  { pattern: /(?:bash|sh)\s+-i\s+>&?\s*\/dev\/tcp\//, name: 'reverse_shell_bash' },
+  { pattern: /New-Object\s+System\.Net\.Sockets\.TCPClient/i, name: 'reverse_shell_powershell' },
 ];
 
 export interface ScanResult {
