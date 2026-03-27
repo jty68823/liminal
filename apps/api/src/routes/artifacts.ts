@@ -27,6 +27,30 @@ artifactsRouter.get('/:id', (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /:id/versions — get artifact version history
+// ---------------------------------------------------------------------------
+
+artifactsRouter.get('/:id/versions', (c) => {
+  const id = c.req.param('id');
+  const artifact = getArtifact(id);
+  if (!artifact) {
+    return c.json({ error: 'Artifact not found' }, 404);
+  }
+  // DB stores only the latest version (single row with version counter).
+  // Return it as the sole entry so the ArtifactVersionHistory component works.
+  return c.json({
+    versions: [
+      {
+        id: artifact.id,
+        version: artifact.version,
+        content: artifact.content,
+        createdAt: artifact.updatedAt,
+      },
+    ],
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PATCH /:id — update artifact content (increments version)
 // ---------------------------------------------------------------------------
 

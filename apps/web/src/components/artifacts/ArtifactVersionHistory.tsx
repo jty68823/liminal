@@ -21,7 +21,7 @@ export function ArtifactVersionHistory({ artifactId, currentVersion, onRestore }
   const [showDiff, setShowDiff] = useState(false);
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/v1/artifacts/${artifactId}/versions`)
+    fetch(`/api/v1/artifacts/${artifactId}/versions`)
       .then((r) => r.json())
       .then((data) => setVersions(data.versions ?? []))
       .catch(() => {});

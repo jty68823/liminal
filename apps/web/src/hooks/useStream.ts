@@ -145,7 +145,7 @@ function handleEvent(
       if (artifactData) {
         const artifact: import('@/store/artifact.store').Artifact = {
           id: typeof artifactData.id === 'string' ? artifactData.id : String(data.id ?? ''),
-          type: (artifactData.type as 'code' | 'html' | 'mermaid' | 'react' | 'text') ?? 'code',
+          type: (artifactData.type as 'code' | 'html' | 'mermaid' | 'react' | 'svg' | 'markdown' | 'text') ?? 'code',
           language: (artifactData.language as string | undefined) ?? undefined,
           title: (artifactData.title as string) ?? '',
           content: typeof artifactData.content === 'string' ? artifactData.content : '',

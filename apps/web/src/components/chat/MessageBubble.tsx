@@ -94,6 +94,8 @@ const ArtifactButton = React.memo(function ArtifactButton({ artifactId, title, t
     html: '#e06c75',
     mermaid: '#98c379',
     react: '#56b6c2',
+    svg: '#e5c07b',
+    markdown: '#c678dd',
     text: '#abb2bf',
   };
 

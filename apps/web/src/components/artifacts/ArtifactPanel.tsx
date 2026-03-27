@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useArtifactStore, type Artifact } from '@/store/artifact.store';
 import { CodeArtifact } from './CodeArtifact';
 import { ReactArtifact } from './ReactArtifact';
+import { ArtifactExport } from './ArtifactExport';
+import { ArtifactVersionHistory } from './ArtifactVersionHistory';
+import { MarkdownContent } from '@/lib/markdown';
 
 function HtmlArtifact({ content }: { content: string }) {
   return (
@@ -14,6 +17,28 @@ function HtmlArtifact({ content }: { content: string }) {
       title="HTML Preview"
       style={{ background: 'white' }}
     />
+  );
+}
+
+function SvgArtifact({ content }: { content: string }) {
+  const srcDoc = `<!DOCTYPE html>
+<html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1c1c1f;}</style></head>
+<body>${content}</body></html>`;
+  return (
+    <iframe
+      srcDoc={srcDoc}
+      sandbox="allow-same-origin"
+      className="w-full h-full border-0"
+      title="SVG Preview"
+    />
+  );
+}
+
+function MarkdownArtifact({ content }: { content: string }) {
+  return (
+    <div className="h-full overflow-y-auto p-6">
+      <MarkdownContent content={content} />
+    </div>
   );
 }
 
@@ -45,6 +70,7 @@ function MermaidArtifact({ content }: { content: string }) {
         const id = `mermaid-${Date.now()}`;
         const { svg } = await mermaid.render(id, content);
         if (!cancelled && containerRef.current) {
+          // mermaid.render() produces sanitized SVG output
           containerRef.current.innerHTML = svg;
           setRendered(true);
         }
@@ -126,6 +152,8 @@ const TYPE_LABELS: Record<Artifact['type'], string> = {
   html: 'HTML',
   mermaid: 'Diagram',
   react: 'React',
+  svg: 'SVG',
+  markdown: 'Markdown',
   text: 'Text',
 };
 
@@ -134,16 +162,24 @@ const TYPE_BADGE_COLORS: Record<Artifact['type'], { bg: string; text: string; gl
   html: { bg: 'rgba(224,108,117,0.12)', text: '#e06c75', glow: 'rgba(224,108,117,0.2)' },
   mermaid: { bg: 'rgba(152,195,121,0.12)', text: '#98c379', glow: 'rgba(152,195,121,0.2)' },
   react: { bg: 'rgba(86,182,194,0.12)', text: '#56b6c2', glow: 'rgba(86,182,194,0.2)' },
+  svg: { bg: 'rgba(229,192,123,0.12)', text: '#e5c07b', glow: 'rgba(229,192,123,0.2)' },
+  markdown: { bg: 'rgba(198,120,221,0.12)', text: '#c678dd', glow: 'rgba(198,120,221,0.2)' },
   text: { bg: 'rgba(171,178,191,0.12)', text: '#abb2bf', glow: 'rgba(171,178,191,0.2)' },
 };
 
 export function ArtifactPanel() {
-  const { activeArtifact, close } = useArtifactStore();
+  const { activeArtifact, close, updateArtifact } = useArtifactStore();
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   if (!activeArtifact) return null;
 
   const badgeColors = TYPE_BADGE_COLORS[activeArtifact.type];
   const typeLabel = TYPE_LABELS[activeArtifact.type];
+  const version = activeArtifact.version ?? 1;
+
+  const handleRestore = (content: string) => {
+    updateArtifact(activeArtifact.id, content);
+  };
 
   const renderContent = () => {
     switch (activeArtifact.type) {
@@ -151,6 +187,10 @@ export function ArtifactPanel() {
         return <HtmlArtifact content={activeArtifact.content} />;
       case 'mermaid':
         return <MermaidArtifact content={activeArtifact.content} />;
+      case 'svg':
+        return <SvgArtifact content={activeArtifact.content} />;
+      case 'markdown':
+        return <MarkdownArtifact content={activeArtifact.content} />;
       case 'text':
         return <TextArtifact content={activeArtifact.content} />;
       case 'react':
@@ -213,6 +253,27 @@ export function ArtifactPanel() {
           </span>
         )}
 
+        {/* Version badge */}
+        <button
+          onClick={() => setShowVersionHistory(!showVersionHistory)}
+          className="text-xs px-1.5 py-0.5 rounded transition-colors hover:bg-white/10"
+          style={{
+            background: 'var(--color-bg-elevated)',
+            color: 'var(--color-text-muted)',
+            fontFamily: 'var(--font-mono)',
+          }}
+          title="Toggle version history"
+        >
+          v{version}
+        </button>
+
+        {/* Export buttons */}
+        <ArtifactExport
+          content={activeArtifact.content}
+          filename={activeArtifact.title}
+          language={activeArtifact.language}
+        />
+
         {/* Close button */}
         <button
           onClick={close}
@@ -226,6 +287,17 @@ export function ArtifactPanel() {
           </svg>
         </button>
       </div>
+
+      {/* Version History dropdown */}
+      {showVersionHistory && (
+        <div className="px-4 pb-3 flex-shrink-0">
+          <ArtifactVersionHistory
+            artifactId={activeArtifact.id}
+            currentVersion={version}
+            onRestore={handleRestore}
+          />
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden relative">
