@@ -305,8 +305,86 @@ toolsRouter.post('/computer/action', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET / — list available tool endpoints
+// Browser automation endpoints — Playwright-based
 // ---------------------------------------------------------------------------
+
+toolsRouter.post('/computer/browser/navigate', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled. Set ENABLE_COMPUTER_USE=1', is_error: true }, 403);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON body', is_error: true }, 400); }
+  try {
+    const { browserNavigateTool } = await import('@liminal/tools');
+    const result = await executeTool(browserNavigateTool, body);
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch (err) {
+    return c.json({ error: 'Browser tools not available', is_error: true }, 503);
+  }
+});
+
+toolsRouter.post('/computer/browser/click', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled', is_error: true }, 403);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON', is_error: true }, 400); }
+  try {
+    const { browserClickTool } = await import('@liminal/tools');
+    const result = await executeTool(browserClickTool, body);
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch { return c.json({ error: 'Browser tools not available', is_error: true }, 503); }
+});
+
+toolsRouter.post('/computer/browser/type', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled', is_error: true }, 403);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON', is_error: true }, 400); }
+  try {
+    const { browserTypeTool } = await import('@liminal/tools');
+    const result = await executeTool(browserTypeTool, body);
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch { return c.json({ error: 'Browser tools not available', is_error: true }, 503); }
+});
+
+toolsRouter.post('/computer/browser/extract', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled', is_error: true }, 403);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON', is_error: true }, 400); }
+  try {
+    const { browserExtractTool } = await import('@liminal/tools');
+    const result = await executeTool(browserExtractTool, body);
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch { return c.json({ error: 'Browser tools not available', is_error: true }, 503); }
+});
+
+toolsRouter.get('/computer/browser/screenshot', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled', is_error: true }, 403);
+  }
+  try {
+    const { browserScreenshotTool } = await import('@liminal/tools');
+    const result = await executeTool(browserScreenshotTool, {});
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch { return c.json({ error: 'Browser tools not available', is_error: true }, 503); }
+});
+
+toolsRouter.post('/computer/autonomous', async (c) => {
+  if (!process.env['ENABLE_COMPUTER_USE']) {
+    return c.json({ error: 'Computer use is disabled', is_error: true }, 403);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON', is_error: true }, 400); }
+  try {
+    const { computerAutonomousTaskTool } = await import('@liminal/tools');
+    const result = await executeTool(computerAutonomousTaskTool, body);
+    return c.json(result, result.is_error ? 500 : 200);
+  } catch { return c.json({ error: 'Autonomous tools not available', is_error: true }, 503); }
+});
 
 toolsRouter.get('/', (c) => {
   return c.json({

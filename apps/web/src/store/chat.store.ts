@@ -105,6 +105,16 @@ interface ChatStore {
   pendingToolCalls: ToolCall[];
   pendingSubAgentResults: SubAgentResult[];
   pendingArtifacts: Artifact[];
+  autonomousProgress: {
+    taskId: string;
+    iteration: number;
+    maxIterations: number;
+    phase: string;
+    action?: string;
+    screenshotBase64?: string;
+    analysis?: string;
+    goalMet: boolean;
+  } | null;
 
   // Actions
   setCurrentConversation(id: string): void;
@@ -116,6 +126,7 @@ interface ChatStore {
   addToolCallResult(callId: string, result: unknown, isError: boolean): void;
   addPendingToolCall(toolCall: ToolCall): void;
   addPendingArtifact(artifact: Artifact): void;
+  setAutonomousProgress(progress: ChatStore['autonomousProgress']): void;
   clearPendingToolCalls(): void;
   addSubAgentResult(result: SubAgentResult): void;
   loadConversations(): Promise<void>;

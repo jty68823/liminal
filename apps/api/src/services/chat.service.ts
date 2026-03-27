@@ -120,7 +120,9 @@ export async function runChat(
     try {
       const project = getProject(projectId);
       if (project?.systemPrompt) projectPrompt = project.systemPrompt;
-    } catch { /* non-fatal */ }
+    } catch (projectErr) {
+      log.warn({ err: projectErr instanceof Error ? projectErr.message : String(projectErr) }, 'Failed to load project prompt');
+    }
   })();
 
   const memoryPromise = (async () => {
@@ -128,16 +130,35 @@ export async function runChat(
     // — embedding + similarity search adds latency with minimal value
     if (content.trim().length < 10) return;
 
-    try {
-      const queryVec = await embed(content);
-      const topMem = searchMemoryBySimilarity(queryVec, { projectId: projectId ?? undefined, k: 3 });
-      memorySnippets = topMem.map((m) => m.content);
-    } catch (embErr) {
-      log.warn({ err: embErr instanceof Error ? embErr.message : String(embErr) }, 'Embedding failed, falling back to recent memory');
+    // Retry embed up to 3 times with exponential backoff
+    let queryVec: number[] | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const recent = listMemory({ projectId: projectId ?? undefined, limit: 3 });
-        memorySnippets = recent.map((m) => m.content);
-      } catch { /* non-fatal */ }
+        queryVec = await embed(content);
+        break;
+      } catch (embErr) {
+        const delay = Math.pow(2, attempt) * 500; // 500ms, 1s, 2s
+        log.warn({ err: embErr instanceof Error ? embErr.message : String(embErr), attempt: attempt + 1 }, `Embedding attempt ${attempt + 1} failed, retrying in ${delay}ms`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, delay));
+      }
+    }
+
+    if (queryVec) {
+      try {
+        const topMem = searchMemoryBySimilarity(queryVec, { projectId: projectId ?? undefined, k: 3 });
+        memorySnippets = topMem.map((m) => m.content);
+        return;
+      } catch (searchErr) {
+        log.warn({ err: searchErr instanceof Error ? searchErr.message : String(searchErr) }, 'Memory similarity search failed');
+      }
+    }
+
+    // Fallback to recent memory
+    try {
+      const recent = listMemory({ projectId: projectId ?? undefined, limit: 3 });
+      memorySnippets = recent.map((m) => m.content);
+    } catch (fallbackErr) {
+      log.warn({ err: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr) }, 'Memory fallback also failed');
     }
   })();
 
@@ -312,7 +333,9 @@ Assistant said: "${_textForMemory.slice(0, 300)}"`;
             await addMemoryWithEmbedding({ content: fact, conversationId: _convIdForMemory, source: 'auto' });
           }
         }
-      } catch { /* non-fatal */ }
+      } catch (memoryErr) {
+        log.warn({ err: memoryErr instanceof Error ? memoryErr.message : String(memoryErr) }, 'Auto memory extraction failed');
+      }
     });
   }
 }
